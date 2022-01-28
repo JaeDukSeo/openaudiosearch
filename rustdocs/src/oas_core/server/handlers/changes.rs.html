@@ -1,0 +1,114 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `rust&#x2F;oas-core&#x2F;src&#x2F;server&#x2F;handlers&#x2F;changes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>changes.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../../storage.js"></script><script src="../../../../crates.js"></script><script defer src="../../../../main.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../oas_core/index.html'><div class='logo-container rust-logo'><img src='../../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1"> 1</span>
+<span id="2"> 2</span>
+<span id="3"> 3</span>
+<span id="4"> 4</span>
+<span id="5"> 5</span>
+<span id="6"> 6</span>
+<span id="7"> 7</span>
+<span id="8"> 8</span>
+<span id="9"> 9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">oas_common::UntypedRecord</span>;
+<span class="kw">use</span> <span class="ident">rocket::http::Status</span>;
+<span class="kw">use</span> <span class="ident">rocket::post</span>;
+<span class="kw">use</span> <span class="ident">rocket::response::status::Custom</span>;
+<span class="kw">use</span> <span class="ident">rocket::serde::json::Json</span>;
+<span class="kw">use</span> <span class="ident">rocket_okapi::openapi</span>;
+<span class="kw">use</span> <span class="ident">schemars::JsonSchema</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::couch::durable_changes::ChangesOpts</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::server::auth::AdminUser</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::server::error::AppError</span>;
+
+<span class="doccomment">/// Get record by GUID</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This handler returns a &quot;durable&quot; changes stream of all records in the database.</span>
+<span class="doccomment">/// The &quot;token&quot; is any string. On the first request, this will return the oldest batch</span>
+<span class="doccomment">/// of changes. On subsequent requests with the same token, only changes that have not</span>
+<span class="doccomment">/// been returned will be returned.</span>
+<span class="doccomment">///</span>
+<span class="comment">// #[openapi(tag = &quot;Changes&quot;)]</span>
+<span class="attribute">#[<span class="ident">openapi</span>(<span class="ident">skip</span>)]</span>
+<span class="attribute">#[<span class="ident">post</span>(<span class="string">&quot;/changes/durable/&lt;token&gt;?&lt;max_len&gt;&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">durable_changes</span>(
+    <span class="ident">_user</span>: <span class="ident">AdminUser</span>,
+    <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">rocket::State</span><span class="op">&lt;</span><span class="ident"><span class="kw">crate</span>::State</span><span class="op">&gt;</span>,
+    <span class="ident">token</span>: <span class="ident">String</span>,
+    <span class="ident">max_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Custom</span><span class="op">&lt;</span><span class="ident">Json</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ChangesResponse</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">AppError</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">opts</span> <span class="op">=</span> <span class="ident">ChangesOpts::default</span>().<span class="ident">set_infinite</span>(<span class="bool-val">false</span>);
+    <span class="kw">let</span> <span class="ident">opts</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">max_len</span> {
+        <span class="prelude-val">Some</span>(<span class="ident">max_len</span>) =&gt; <span class="ident">opts</span>.<span class="ident">set_max_batch_len</span>(<span class="ident">max_len</span>),
+        <span class="prelude-val">None</span> =&gt; <span class="ident">opts</span>,
+    };
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">changes</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">db_manager</span>.<span class="ident">durable_changes</span>(<span class="ident">token</span>, <span class="ident">opts</span>).<span class="kw">await</span>;
+    <span class="kw">let</span> <span class="ident">batch</span> <span class="op">=</span> <span class="ident">changes</span>.<span class="ident">next</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">batch</span>) <span class="op">=</span> <span class="ident">batch</span> {
+        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">ChangesResponse</span> {
+            <span class="ident">changes</span>: <span class="ident">batch</span>.<span class="ident">records</span>,
+            <span class="ident">seq</span>: <span class="ident">batch</span>.<span class="ident">last_seq</span>.<span class="ident">expect</span>(<span class="string">&quot;Last seq may not be empty&quot;</span>),
+        };
+        <span class="comment">// TODO: Make auto-ack optional</span>
+        <span class="ident">changes</span>.<span class="ident">ack</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">Custom</span>(<span class="ident">Status::Ok</span>, <span class="ident">Json</span>(<span class="prelude-val">Some</span>(<span class="ident">res</span>))))
+    } <span class="kw">else</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">Custom</span>(<span class="ident">Status::NoContent</span>, <span class="ident">Json</span>(<span class="prelude-val">None</span>)))
+    };
+    <span class="ident">res</span>
+}
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">JsonSchema</span>, <span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ChangesResponse</span> {
+    <span class="kw">pub</span> <span class="ident">changes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">UntypedRecord</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">seq</span>: <span class="ident">String</span>,
+}
+</code></pre></div>
+</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="oas_core" data-search-index-js="../../../../search-index.js" data-search-js="../../../../search.js"></div>
+</body></html>

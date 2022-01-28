@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["oas_core"] = [{"text":"impl Stream for <a class=\"struct\" href=\"oas_core/couch/struct.ChangesStream.html\" title=\"struct oas_core::couch::ChangesStream\">ChangesStream</a>","synthetic":false,"types":["oas_core::couch::changes::ChangesStream"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

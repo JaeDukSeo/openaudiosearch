@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["IndexError",""]],"struct":[["Config","ElasticSearch config."],["Index","ElasticSearch client."],["IndexManager","The index manager holds configuration, an HTTP client and the names of active indexes."],["InitOpts","Options for index initialization with optional recreation."],["PostIndex",""]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["MappingError",""]],"struct":[["FieldMap",""],["FieldMapping",""]],"trait":[["Mappable",""]]});

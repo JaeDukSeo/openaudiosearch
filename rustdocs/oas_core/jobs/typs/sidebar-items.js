@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["ASR",""],["NLP",""]],"fn":[["asr_job",""],["nlp_job",""],["on_asr_complete","When an ASR job completes, create NLP jobs for all posts that contain this media."]]});

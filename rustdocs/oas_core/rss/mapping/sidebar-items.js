@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["FieldMapping",""],["Mapping",""],["MappingManager",""]],"type":[["AllMappings",""]]});

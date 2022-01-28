@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Reference","A reference is an enum that can be in two states: It either holds an ID to a record, or a loaded record."]],"fn":[["extract_refs","Helper funtction to extract all loaded refences from a slice of references into [UntypedRecord]s, mutating the references into IDs."]]});
